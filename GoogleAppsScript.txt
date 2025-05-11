@@ -1,0 +1,90 @@
+// Google Apps Script Code
+// This goes in the Script Editor of your Google Sheet
+
+function doGet(e) {
+  return handleResponse(e);
+}
+
+function doPost(e) {
+  return handleResponse(e);
+}
+
+function handleResponse(e) {
+  // Make sure to add a sheet named "Data" or update this line
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // Process the request data
+  var date = e.parameter.date;
+  var timestamp = e.parameter.time;
+  var coinValue = e.parameter.coin;
+  var slotNumber = e.parameter.slot;
+  var dailyTotal = e.parameter.total;
+  
+  // Check if we have a sheet for this date already
+  var sheet = findOrCreateSheet(spreadsheet, date);
+  
+  // If this is a new sheet, add headers
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['Timestamp', 'Coin Value', 'Slot Number', 'Running Total']);
+  }
+  
+  // Append the data
+  sheet.appendRow([timestamp, coinValue, slotNumber, dailyTotal]);
+  
+  // Update summary sheet
+  updateSummary(spreadsheet, date, coinValue);
+  
+  // Return success response
+  return ContentService.createTextOutput('Success');
+}
+
+function findOrCreateSheet(spreadsheet, dateString) {
+  try {
+    // Try to get the sheet by name
+    var sheet = spreadsheet.getSheetByName(dateString);
+    
+    // If sheet doesn't exist, create it
+    if (!sheet) {
+      sheet = spreadsheet.insertSheet(dateString);
+      Logger.log('Created new sheet for date: ' + dateString);
+    }
+    
+    return sheet;
+  } catch (error) {
+    Logger.log('Error in findOrCreateSheet: ' + error);
+    
+    // Return the "Data" sheet as fallback
+    return spreadsheet.getSheetByName('Data') || spreadsheet.insertSheet('Data');
+  }
+}
+
+function updateSummary(spreadsheet, date, coinValue) {
+  // Get or create the summary sheet
+  var summarySheet = spreadsheet.getSheetByName('Summary');
+  if (!summarySheet) {
+    summarySheet = spreadsheet.insertSheet('Summary');
+    summarySheet.appendRow(['Date', 'Total Coins', 'Total Value']);
+  }
+  
+  // Check if this date is already in the summary
+  var dateColumn = summarySheet.getRange('A:A').getValues();
+  var rowIndex = -1;
+  
+  for (var i = 0; i < dateColumn.length; i++) {
+    if (dateColumn[i][0] === date) {
+      rowIndex = i + 1; // +1 because array is 0-indexed but sheets are 1-indexed
+      break;
+    }
+  }
+  
+  if (rowIndex > 0) {
+    // Update existing row
+    var currentCount = summarySheet.getRange(rowIndex, 2).getValue();
+    var currentTotal = summarySheet.getRange(rowIndex, 3).getValue();
+    summarySheet.getRange(rowIndex, 2).setValue(currentCount + 1);
+    summarySheet.getRange(rowIndex, 3).setValue(currentTotal + Number(coinValue));
+  } else {
+    // Add new row for this date
+    summarySheet.appendRow([date, 1, Number(coinValue)]);
+  }
+}
