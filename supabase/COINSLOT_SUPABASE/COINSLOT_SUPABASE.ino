@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <time.h>
+#include <ArduinoJson.h>  // For JSON formatting
 
 #define WIFI_SSID "AttyGadon 2.5"
 #define WIFI_PASSWORD "Kroi101!"
@@ -13,8 +14,10 @@
 #define GMT_OFFSET_SEC 28800     // GMT+8 (Philippines)
 #define DAYLIGHT_OFFSET_SEC 0
 
-// Google Script ID - you'll get this when you deploy your Google Apps Script
-#define GOOGLE_SCRIPT_ID "AKfycbxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+// Supabase API settings
+#define SUPABASE_URL "https://mtcqikpjonxvarfhzquw.supabase.co"
+#define SUPABASE_API_KEY "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10Y3Fpa3Bqb254dmFyZmh6cXV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY5MzU2NzksImV4cCI6MjA2MjUxMTY3OX0.6rL1nTePcPQdYrdCWLh1x8eBCuHyZDwMIcm_f0YWGcs"
+#define SUPABASE_TABLE "coin_logs"
 
 // Coin detector pins
 #define coinPin1 23
@@ -190,6 +193,9 @@ void loop() {
         strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", timeinfo);
         Serial.print("Time synchronized: ");
         Serial.println(time_str);
+        
+        // Check if it's midnight and reset the daily total if needed
+        checkDailyReset();
     }
 }
 
@@ -220,16 +226,15 @@ void handlePulse(int count, int slot) {
 
         Serial.print("Slot ");
         Serial.print(slot);
-        Serial.print(" added ");
-        Serial.print(creditToAdd);
+        Serial.print(" added ");        Serial.print(creditToAdd);
         Serial.println(" credits.");
 
-        // Send data to Google Sheets
-        sendCoinDataToGoogleSheets(creditToAdd, slot);
+        // Send data to Supabase
+        sendCoinDataToSupabase(creditToAdd, slot);
     }
 }
 
-void sendCoinDataToGoogleSheets(int creditAmount, int slotNumber) {
+void sendCoinDataToSupabase(int creditAmount, int slotNumber) {
     // Check if WiFi is still connected
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("WiFi not connected");
@@ -249,34 +254,40 @@ void sendCoinDataToGoogleSheets(int creditAmount, int slotNumber) {
     char datetime_str[30];
     strftime(datetime_str, sizeof(datetime_str), "%Y-%m-%d %H:%M:%S", timeinfo);
     
-    // Format date as YYYY-MM-DD for Google Sheets tab
-    char date_str[11];
-    strftime(date_str, sizeof(date_str), "%Y-%m-%d", timeinfo);
-    
     // Show sending status on LCD
     lcd.setCursor(0, 1);
     lcd.print("SENDING DATA...  ");
     
-    // Prepare data for Google Sheets
-    String urlFinal = "https://script.google.com/macros/s/" + String(GOOGLE_SCRIPT_ID) + "/exec";
-    String payload = "date=" + String(date_str) + 
-                     "&time=" + String(datetime_str) + 
-                     "&coin=" + String(creditAmount) + 
-                     "&slot=" + String(slotNumber) +
-                     "&total=" + String(dailyTotal);
+    // Create JSON payload for Supabase
+    DynamicJsonDocument doc(256);
+    doc["timestamp"] = String(datetime_str);  // Store timestamp
+    doc["coin_value"] = creditAmount;         // Store coin value
+    doc["daily_total"] = dailyTotal;          // Store dynamically updating daily total
+    doc["slot_number"] = slotNumber;          // Additional info - which slot was used
+    
+    String jsonPayload;
+    serializeJson(doc, jsonPayload);
                      
-    Serial.println("Sending data to Google Sheets...");
-    Serial.println(payload);
+    Serial.println("Sending data to Supabase...");
+    Serial.println(jsonPayload);
     
     HTTPClient http;
-    http.begin(urlFinal);
-    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+    // Create URL for Supabase REST API
+    String urlFinal = String(SUPABASE_URL) + "/rest/v1/" + String(SUPABASE_TABLE);
     
-    int httpCode = http.POST(payload);
+    http.begin(urlFinal);
+    
+    // Set required Supabase headers
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("apikey", SUPABASE_API_KEY);
+    http.addHeader("Authorization", "Bearer " + String(SUPABASE_API_KEY));
+    http.addHeader("Prefer", "return=minimal");  // Don't return data to save bandwidth
+    
+    int httpCode = http.POST(jsonPayload);
     String response = http.getString();
     
-    if (httpCode > 0) {
-        Serial.print("HTTP Response code: ");
+    if (httpCode == 201) {  // 201 is the success code for POST creation
+        Serial.print("HTTP Success! Response code: ");
         Serial.println(httpCode);
         Serial.println(response);
         
@@ -285,6 +296,7 @@ void sendCoinDataToGoogleSheets(int creditAmount, int slotNumber) {
     } else {
         Serial.print("Error sending data. Code: ");
         Serial.println(httpCode);
+        Serial.println(response);
         
         lcd.clear();
         lcd.setCursor(0, 0);
@@ -299,9 +311,45 @@ void sendCoinDataToGoogleSheets(int creditAmount, int slotNumber) {
     // Wait briefly to show sending message
     delay(500);
     
-    // Return to showing credits
-    lcd.setCursor(0, 1);
+    // Return to showing credits    lcd.setCursor(0, 1);
     lcd.print("CREDITS: ");
     lcd.print(coinCount);
     lcd.print("      ");
+}
+
+void checkDailyReset() {
+    static int lastDate = -1;
+    
+    time_t now;
+    time(&now);
+    
+    struct tm* timeinfo = localtime(&now);
+    int currentDate = timeinfo->tm_mday;
+    
+    // If this is the first run or date has changed
+    if (lastDate != currentDate) {
+        if (lastDate != -1) {  // Not the first run
+            Serial.println("Date changed! Resetting daily total");
+            
+            // Reset daily total
+            dailyTotal = 0;
+            
+            lcd.clear();
+            lcd.setCursor(0, 0);
+            lcd.print("DAILY RESET");
+            lcd.setCursor(0, 1);
+            lcd.print("NEW DAY STARTED");
+            delay(2000);
+            
+            // Return to standard view
+            lcd.clear();
+            lcd.setCursor(2, 0);
+            lcd.print("SUNBOX");
+            lcd.setCursor(1, 1);
+            lcd.print("INSERT A COINS");
+        }
+        
+        // Update lastDate
+        lastDate = currentDate;
+    }
 }
