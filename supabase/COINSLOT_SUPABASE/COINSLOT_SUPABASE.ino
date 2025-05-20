@@ -6,8 +6,8 @@
 #include <time.h>
 #include <ArduinoJson.h>  // For JSON formatting
 
-#define WIFI_SSID "AttyGadon 2.5"
-#define WIFI_PASSWORD "Kroi101!"
+#define WIFI_SSID "PLDT_Home_6C922"
+#define WIFI_PASSWORD "Sunbox2025"
 
 // NTP settings
 #define NTP_SERVER "pool.ntp.org"
@@ -23,6 +23,9 @@
 #define coinPin1 23
 #define coinPin2 19
 #define coinPin3 18
+#define coinPin4 5
+#define coinPin5 17
+#define coinPin6 16
 
 // LCD PINS, SDA = 21 , SCL = 22
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -31,14 +34,23 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 volatile int pulseCount1 = 0;
 volatile int pulseCount2 = 0;
 volatile int pulseCount3 = 0;
+volatile int pulseCount4 = 0;
+volatile int pulseCount5 = 0;
+volatile int pulseCount6 = 0;
 
 volatile bool pulseDetected1 = false;
 volatile bool pulseDetected2 = false;
 volatile bool pulseDetected3 = false;
+volatile bool pulseDetected4 = false;
+volatile bool pulseDetected5 = false;
+volatile bool pulseDetected6 = false;
 
 unsigned long lastPulseTime1 = 0;
 unsigned long lastPulseTime2 = 0;
 unsigned long lastPulseTime3 = 0;
+unsigned long lastPulseTime4 = 0;
+unsigned long lastPulseTime5 = 0;
+unsigned long lastPulseTime6 = 0;
 
 const unsigned long pulseTimeout = 300; // ms
 
@@ -72,6 +84,33 @@ void IRAM_ATTR ISR_Coin3() {
     }
 }
 
+// ISR for coin slot 4
+void IRAM_ATTR ISR_Coin4() {
+    if (digitalRead(coinPin4) == LOW) {
+        pulseCount4++;
+        lastPulseTime4 = millis();
+        pulseDetected4 = true;
+    }
+}
+
+// ISR for coin slot 5
+void IRAM_ATTR ISR_Coin5() {
+    if (digitalRead(coinPin5) == LOW) {
+        pulseCount5++;
+        lastPulseTime5 = millis();
+        pulseDetected5 = true;
+    }
+}
+
+// ISR for coin slot 6
+void IRAM_ATTR ISR_Coin6() {
+    if (digitalRead(coinPin6) == LOW) {
+        pulseCount6++;
+        lastPulseTime6 = millis();
+        pulseDetected6 = true;
+    }
+}
+
 void setup() {
     Serial.begin(115200);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -89,10 +128,16 @@ void setup() {
     pinMode(coinPin1, INPUT_PULLUP);
     pinMode(coinPin2, INPUT_PULLUP);
     pinMode(coinPin3, INPUT_PULLUP);
+    pinMode(coinPin4, INPUT_PULLUP);
+    pinMode(coinPin5, INPUT_PULLUP);
+    pinMode(coinPin6, INPUT_PULLUP);
 
     attachInterrupt(digitalPinToInterrupt(coinPin1), ISR_Coin1, FALLING);
     attachInterrupt(digitalPinToInterrupt(coinPin2), ISR_Coin2, FALLING);
     attachInterrupt(digitalPinToInterrupt(coinPin3), ISR_Coin3, FALLING);
+    attachInterrupt(digitalPinToInterrupt(coinPin4), ISR_Coin4, FALLING);
+    attachInterrupt(digitalPinToInterrupt(coinPin5), ISR_Coin5, FALLING);
+    attachInterrupt(digitalPinToInterrupt(coinPin6), ISR_Coin6, FALLING);
 
     // Initialize LCD
     lcd.init();
@@ -178,6 +223,27 @@ void loop() {
         handlePulse(pulseCount3, 3);
         pulseCount3 = 0;
         pulseDetected3 = false;
+    }
+    
+    // Process coin slot 4
+    if (pulseDetected4 && (now - lastPulseTime4) > pulseTimeout && pulseCount4 > 0) {
+        handlePulse(pulseCount4, 4);
+        pulseCount4 = 0;
+        pulseDetected4 = false;
+    }
+    
+    // Process coin slot 5
+    if (pulseDetected5 && (now - lastPulseTime5) > pulseTimeout && pulseCount5 > 0) {
+        handlePulse(pulseCount5, 5);
+        pulseCount5 = 0;
+        pulseDetected5 = false;
+    }
+    
+    // Process coin slot 6
+    if (pulseDetected6 && (now - lastPulseTime6) > pulseTimeout && pulseCount6 > 0) {
+        handlePulse(pulseCount6, 6);
+        pulseCount6 = 0;
+        pulseDetected6 = false;
     }
 
     // Periodic time sync (every hour)
