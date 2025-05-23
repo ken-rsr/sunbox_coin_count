@@ -2,12 +2,11 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <Wire.h>
-#include <LiquidCrystal_I2C.h>
 #include <time.h>
 #include <ArduinoJson.h>  // For JSON formatting
 
-#define WIFI_SSID "PLDT_Home_6C922"
-#define WIFI_PASSWORD "Sunbox2025"
+#define WIFI_SSID "PAPARAPAKYAW"
+#define WIFI_PASSWORD "123456789"
 
 // NTP settings
 #define NTP_SERVER "pool.ntp.org"
@@ -26,9 +25,6 @@
 #define coinPin4 5
 #define coinPin5 17
 #define coinPin6 16
-
-// LCD PINS, SDA = 21 , SCL = 22
-LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // Coin detector variables
 volatile int pulseCount1 = 0;
@@ -139,13 +135,10 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(coinPin5), ISR_Coin5, FALLING);
     attachInterrupt(digitalPinToInterrupt(coinPin6), ISR_Coin6, FALLING);
 
-    // Initialize LCD
-    lcd.init();
-    lcd.backlight();
-    lcd.setCursor(2, 0);
-    lcd.print("SUNBOX");
-    lcd.setCursor(1, 1);
-    lcd.print("INITIALIZING...");
+    Serial.println("===============================");
+    Serial.println("          SUNBOX");
+    Serial.println("        INITIALIZING...");
+    Serial.println("===============================");
 
     // Initialize NTP
     configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER, "time.google.com");
@@ -155,9 +148,7 @@ void setup() {
     int timeout = 20;
     bool timeOK = false;
     
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("WAITING FOR TIME");
+    Serial.println("WAITING FOR TIME SYNC");
     
     while (timeout > 0 && !timeOK) {
         time(&now);
@@ -165,10 +156,9 @@ void setup() {
             timeOK = true;
             break;
         }
-        lcd.setCursor(0, 1);
-        lcd.print("SYNC WAIT: ");
-        lcd.print(timeout);
-        lcd.print("s  ");
+        Serial.print("SYNC WAIT: ");
+        Serial.print(timeout);
+        Serial.println("s");
         delay(1000);
         timeout--;
     }
@@ -178,26 +168,21 @@ void setup() {
     char time_str[30];
     strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", timeinfo);
     
-    lcd.clear();
-    lcd.setCursor(0, 0);
     if (timeOK) {
-        lcd.print("TIME SYNCED OK!");
+        Serial.println("TIME SYNCED OK!");
         Serial.print("NTP time synchronized: ");
         Serial.println(time_str);
     } else {
-        lcd.print("TIME SYNC FAIL!");
+        Serial.println("TIME SYNC FAIL!");
         Serial.println("NTP time sync failed!");
     }
-    lcd.setCursor(0, 1);
-    lcd.print(time_str);
-    delay(2000);
+    Serial.println(time_str);
     
     // Ready to use
-    lcd.clear();
-    lcd.setCursor(2, 0);
-    lcd.print("SUNBOX");
-    lcd.setCursor(1, 1);
-    lcd.print("INSERT A COINS");
+    Serial.println("===============================");
+    Serial.println("          SUNBOX");
+    Serial.println("      INSERT A COINS");
+    Serial.println("===============================");
 }
 
 void loop() {
@@ -283,16 +268,16 @@ void handlePulse(int count, int slot) {
         coinCount += creditToAdd;
         dailyTotal += creditToAdd;
         
-        lcd.clear();
-        lcd.setCursor(2, 0);
-        lcd.print("SUNBOX");
-        lcd.setCursor(0, 1);
-        lcd.print("CREDITS: ");
-        lcd.print(coinCount);
+        Serial.println("===============================");
+        Serial.println("          SUNBOX");
+        Serial.print("CREDITS: ");
+        Serial.println(coinCount);
+        Serial.println("===============================");
 
         Serial.print("Slot ");
         Serial.print(slot);
-        Serial.print(" added ");        Serial.print(creditToAdd);
+        Serial.print(" added ");
+        Serial.print(creditToAdd);
         Serial.println(" credits.");
 
         // Send data to Supabase
@@ -320,9 +305,7 @@ void sendCoinDataToSupabase(int creditAmount, int slotNumber) {
     char datetime_str[30];
     strftime(datetime_str, sizeof(datetime_str), "%Y-%m-%d %H:%M:%S", timeinfo);
     
-    // Show sending status on LCD
-    lcd.setCursor(0, 1);
-    lcd.print("SENDING DATA...  ");
+    Serial.println("SENDING DATA...");
     
     // Create JSON payload for Supabase
     DynamicJsonDocument doc(256);
@@ -356,20 +339,14 @@ void sendCoinDataToSupabase(int creditAmount, int slotNumber) {
         Serial.print("HTTP Success! Response code: ");
         Serial.println(httpCode);
         Serial.println(response);
-        
-        lcd.setCursor(0, 1);
-        lcd.print("DATA SAVED OK!  ");
+        Serial.println("DATA SAVED OK!");
     } else {
         Serial.print("Error sending data. Code: ");
         Serial.println(httpCode);
         Serial.println(response);
-        
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("DATA ERROR!");
-        lcd.setCursor(0, 1);
-        lcd.print("CODE: ");
-        lcd.print(httpCode);
+        Serial.println("DATA ERROR!");
+        Serial.print("CODE: ");
+        Serial.println(httpCode);
     }
     
     http.end();
@@ -377,10 +354,11 @@ void sendCoinDataToSupabase(int creditAmount, int slotNumber) {
     // Wait briefly to show sending message
     delay(500);
     
-    // Return to showing credits    lcd.setCursor(0, 1);
-    lcd.print("CREDITS: ");
-    lcd.print(coinCount);
-    lcd.print("      ");
+    // Return to showing credits
+    Serial.println("===============================");
+    Serial.print("CREDITS: ");
+    Serial.println(coinCount);
+    Serial.println("===============================");
 }
 
 void checkDailyReset() {
@@ -400,19 +378,17 @@ void checkDailyReset() {
             // Reset daily total
             dailyTotal = 0;
             
-            lcd.clear();
-            lcd.setCursor(0, 0);
-            lcd.print("DAILY RESET");
-            lcd.setCursor(0, 1);
-            lcd.print("NEW DAY STARTED");
+            Serial.println("===============================");
+            Serial.println("DAILY RESET");
+            Serial.println("NEW DAY STARTED");
+            Serial.println("===============================");
             delay(2000);
             
             // Return to standard view
-            lcd.clear();
-            lcd.setCursor(2, 0);
-            lcd.print("SUNBOX");
-            lcd.setCursor(1, 1);
-            lcd.print("INSERT A COINS");
+            Serial.println("===============================");
+            Serial.println("          SUNBOX");
+            Serial.println("      INSERT A COINS");
+            Serial.println("===============================");
         }
         
         // Update lastDate
