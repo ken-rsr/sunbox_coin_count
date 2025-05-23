@@ -253,15 +253,12 @@ void loop() {
 void handlePulse(int count, int slot) {
     int creditToAdd = 0;
 
-    if (count == 3) {
-        creditToAdd = 5;
-    } else if (count == 6) {
-        creditToAdd = 10;
-    } else {
-        Serial.print("Unknown pulse count from Slot ");
-        Serial.print(slot);
-        Serial.print(": ");
-        Serial.println(count);
+    // Add credits based on pulse count only
+    if (count >= 1 && count <= 3) {
+        creditToAdd = 5;  // 1-3 pulses = 5 credits
+    } 
+    else if (count >= 4 && count <= 6) {
+        creditToAdd = 10;  // 4-6 pulses = 10 credits
     }
 
     if (creditToAdd > 0) {
@@ -276,7 +273,9 @@ void handlePulse(int count, int slot) {
 
         Serial.print("Slot ");
         Serial.print(slot);
-        Serial.print(" added ");
+        Serial.print(" detected ");
+        Serial.print(count);
+        Serial.print(" pulses and added ");
         Serial.print(creditToAdd);
         Serial.println(" credits.");
 
