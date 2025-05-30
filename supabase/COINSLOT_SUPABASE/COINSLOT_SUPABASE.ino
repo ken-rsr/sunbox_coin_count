@@ -5,8 +5,8 @@
 #include <time.h>
 #include <ArduinoJson.h>  // For JSON formatting
 
-#define WIFI_SSID "PAPARAPAKYAW"
-#define WIFI_PASSWORD "123456789"
+#define WIFI_SSID "ChocoButterNut"
+#define WIFI_PASSWORD "SunCheese"
 
 // NTP settings
 #define NTP_SERVER "pool.ntp.org"
@@ -20,11 +20,11 @@
 
 // Coin detector pins
 #define coinPin1 23
-#define coinPin2 19
-#define coinPin3 18
-#define coinPin4 5
-#define coinPin5 17
-#define coinPin6 16
+#define coinPin2 22
+#define coinPin3 21
+#define coinPin4 19
+#define coinPin5 18
+#define coinPin6 4
 
 // Coin detector variables
 volatile int pulseCount1 = 0;
@@ -250,7 +250,41 @@ void loop() {
     }
 }
 
+// Add this function to check if coin slots are properly connected
+bool isSlotConnected(int pin) {
+    // Read pin state multiple times to check stability
+    bool state1 = digitalRead(pin);
+    delay(1);
+    bool state2 = digitalRead(pin);
+    delay(1);
+    bool state3 = digitalRead(pin);
+    
+    // If all readings are consistent and HIGH (pulled up), slot is likely connected
+    return (state1 == state2 && state2 == state3 && state1 == HIGH);
+}
+
+// Modified handlePulse function with connection check
 void handlePulse(int count, int slot) {
+    int pin = 0;
+    
+    // Map slot to pin
+    switch(slot) {
+        case 1: pin = coinPin1; break;
+        case 2: pin = coinPin2; break;
+        case 3: pin = coinPin3; break;
+        case 4: pin = coinPin4; break;
+        case 5: pin = coinPin5; break;
+        case 6: pin = coinPin6; break;
+    }
+    
+    // Check if slot is properly connected before processing
+    if (!isSlotConnected(pin)) {
+        Serial.print("Slot ");
+        Serial.print(slot);
+        Serial.println(" appears disconnected. Ignoring pulse.");
+        return;
+    }
+    
     int creditToAdd = 0;
 
     // Add credits based on pulse count only
